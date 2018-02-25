@@ -1,2 +1,8 @@
 # TF2_PhysicsGun
-Physics Gun on TF2! Grab everything!
+Allow players to use PhysicsGun on TF2! Grab everything!
+
+## Requirements
+- [VPhysics](https://forums.alliedmods.net/showthread.php?t=136350)
+- [TF2Items_Giveweapon](https://forums.alliedmods.net/showthread.php?p=1337899)
+
+Pull requests welcome
