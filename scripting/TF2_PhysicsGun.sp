@@ -24,6 +24,8 @@ public Plugin myinfo =
 	url = "http://steamcommunity.com/id/battlefieldduck/"
 };
 
+#define PARTICLE "medicgun_beam_machinery"
+
 //https://github.com/bouletmarc/hl2_ep2_content
 #define MODEL_PHYSICSGUN 			"models/weapons/w_physics.mdl"
 #define MODEL_PHYSICSGUNVIEWMODEL 	"models/weapons/v_superphyscannon.mdl"
@@ -46,7 +48,7 @@ int g_iPhysicsGunWorld;
 int g_HaloIndex;
 int g_iBlueGlow;
 
-int g_iGrabbingEntity[MAXPLAYERS + 1][3]; //0. Entity, 1. Glow entity index, 2. Reserved
+int g_iGrabbingEntity[MAXPLAYERS + 1][4]; //0. Entity, 1. Glow entity index, 2. Particle1 3. Particle2
 float g_fGrabbingDistance[MAXPLAYERS + 1]; //MaxDistance
 float g_fGrabbingDifference[MAXPLAYERS + 1][3]; //Difference
 bool g_bGrabbingAttack2[MAXPLAYERS + 1];
@@ -58,7 +60,7 @@ public void OnPluginStart()
 	g_cvForceEntity = CreateConVar("sm_tf2sb_pg_forceentity", "70.0", "Force when throwing Entity (Default: 70.0)", 0, true, 1.0, true, 100.0);
 	g_cvForcePlayer = CreateConVar("sm_tf2sb_pg_forceplayer", "20.0", "Force when throwing Player (Default: 20.0)", 0, true, 1.0, true, 100.0);
 	
-	RegAdminCmd("sm_pg", Command_EquipPhysicsGun, ADMFLAG_ROOT, "Equip Physics Gun!");
+	RegAdminCmd("sm_pg", Command_EquipPhysicsGun, ADMFLAG_RESERVATION, "Equip Physics Gun!");
 	//RegAdminCmd("sm_pg", Command_EquipPhysicsGun, 0, "Equip Physics Gun!");
 	
 	HookEvent("player_spawn", Event_PlayerSpawn);
@@ -77,8 +79,7 @@ public Action Command_EquipPhysicsGun(int client, int args)
 			if(IsValidEntity(iWeapon)) SetEntPropEnt(client, Prop_Send, "m_hActiveWeapon", iWeapon);
 			
 			if(!TF2Items_CheckWeapon(g_iPhysicGunIndex))
-			{
-				
+			{		
 				if(!IsModelPrecached(MODEL_PHYSICSGUN))	PrecacheModel(MODEL_PHYSICSGUN);
 				TF2Items_CreateWeapon(g_iPhysicGunIndex, "tf_weapon_builder", g_iPhysicGunWeaponIndex, 1, g_iPhysicGunQuality, 99, "", -1, MODEL_PHYSICSGUN, true);
 			}
@@ -112,6 +113,7 @@ public void OnMapStart() //Precache Sound and Model
 		g_iGrabbingEntity[i][0] = -1; //Grab entity
 		g_iGrabbingEntity[i][1] = -1; //tf_glow
 		g_iGrabbingEntity[i][2] = -1;
+		g_iGrabbingEntity[i][3] = -1;
 		if(IsValidClient(i)) 
 		{
 			SDKHook(i, SDKHook_WeaponSwitchPost, WeaponSwitchHookPost);
@@ -125,6 +127,7 @@ public void OnClientPutInServer(int client)
 	g_iGrabbingEntity[client][0] = -1; //Grab entity
 	g_iGrabbingEntity[client][1] = -1; //tf_glow
 	g_iGrabbingEntity[client][2] = -1;
+	g_iGrabbingEntity[client][3] = -1;
 	g_fGrabbingDistance[client] = 0.0;
 	g_bGrabbingRotate[client] = false;
 	SDKHook(client, SDKHook_WeaponSwitchPost, WeaponSwitchHookPost);
@@ -136,6 +139,7 @@ public void OnClientDisconnect(int client)
 	g_iGrabbingEntity[client][0] = -1; //Grab entity
 	g_iGrabbingEntity[client][1] = -1; //tf_glow
 	g_iGrabbingEntity[client][2] = -1;
+	g_iGrabbingEntity[client][3] = -1;
 	g_fGrabbingDistance[client] = 0.0;
 	g_bGrabbingRotate[client] = false;
 	SDKUnhook(client, SDKHook_WeaponCanSwitchTo, BlockWeaponSwtich);
@@ -190,20 +194,24 @@ public Action WeaponSwitchHookPost(int client, int entity)
 		}
 		else
 		{
-			char sArmModel[128];
-			switch (TF2_GetPlayerClass(client))
+			//Change back to default viewmodel when m_nModelIndex == g_iPhysicsGun only.
+			if(GetEntProp(iViewModel, Prop_Send, "m_nModelIndex", 2) == g_iPhysicsGun)
 			{
-				case TFClass_Scout: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_scout_arms.mdl");
-				case TFClass_Soldier: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_soldier_arms.mdl");
-				case TFClass_Pyro: 		Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_pyro_arms.mdl");
-				case TFClass_DemoMan: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_demo_arms.mdl");
-				case TFClass_Heavy:		Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_heavy_arms.mdl");
-				case TFClass_Engineer: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_engineer_arms.mdl");
-				case TFClass_Medic: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_medic_arms.mdl");
-				case TFClass_Sniper: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_sniper_arms.mdl");
-				case TFClass_Spy: 		Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_spy_arms.mdl");
+				char sArmModel[128];
+				switch (TF2_GetPlayerClass(client))
+				{
+					case TFClass_Scout: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_scout_arms.mdl");
+					case TFClass_Soldier: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_soldier_arms.mdl");
+					case TFClass_Pyro: 		Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_pyro_arms.mdl");
+					case TFClass_DemoMan: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_demo_arms.mdl");
+					case TFClass_Heavy:		Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_heavy_arms.mdl");
+					case TFClass_Engineer: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_engineer_arms.mdl");
+					case TFClass_Medic: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_medic_arms.mdl");
+					case TFClass_Sniper: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_sniper_arms.mdl");
+					case TFClass_Spy: 		Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_spy_arms.mdl");
+				}
+				if(strlen(sArmModel) > 0)	SetEntProp(iViewModel, Prop_Send, "m_nModelIndex", PrecacheModel(sArmModel, true), 2);
 			}
-			if(strlen(sArmModel) > 0)	SetEntProp(iViewModel, Prop_Send, "m_nModelIndex", PrecacheModel(sArmModel, true), 2);
 		}
 	}	
 }
@@ -234,12 +242,24 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				
 				//Fix the index of Grabbing entity
 				if(IsValidEntity(iEntity) && !IsValidEntity(g_iGrabbingEntity[client][0]))	
-				{			
+				{					
 					//Hook Disable Change Weapon
 					SDKHook(client, SDKHook_WeaponCanSwitchTo, BlockWeaponSwtich);
 					
 					//Bind Entity
 					g_iGrabbingEntity[client][0] = iEntity;
+					
+					
+					if(IsValidEntity(g_iGrabbingEntity[client][2]))	
+					{
+						AcceptEntityInput(g_iGrabbingEntity[client][2], "Kill");
+					}
+					if(IsValidEntity(g_iGrabbingEntity[client][3]))	
+					{
+						AcceptEntityInput(g_iGrabbingEntity[client][3], "Kill");
+					}
+					AttachControlPointParticle(client, PARTICLE, g_iGrabbingEntity[client][0]);
+					
 					
 					//Set Entity Outline
 					if(!HasGlow(g_iGrabbingEntity[client][0]) && !IsValidEntity(g_iGrabbingEntity[client][1]))
@@ -649,7 +669,7 @@ void SetEntityGlows(int client, int iEntity, float fEndPosition[3]) //Set the Gl
 	{
 		//Laser on client and Aim position
 		TE_SetupBeamPoints(fLocal_Origin, fLocal_EOrigin, g_ModelIndex, g_HaloIndex, 0, 15, 0.1, 0.11, 0.1, 1, 0.0, {255, 255, 255, 255}, 1);
-		TE_SendToAll();	
+		TE_SendToAll();
 	}
 }
 
@@ -665,7 +685,16 @@ void ResetClientAttribute(int client)
 		SDKUnhook(client, SDKHook_WeaponCanSwitchTo, BlockWeaponSwtich);
 		g_iGrabbingEntity[client][0] = -1;
 	}
-	g_iGrabbingEntity[client][2] = -1;
+	if(IsValidEntity(g_iGrabbingEntity[client][2]))	
+	{
+		AcceptEntityInput(g_iGrabbingEntity[client][2], "Kill");
+		g_iGrabbingEntity[client][2] = -1;
+	}
+	if(IsValidEntity(g_iGrabbingEntity[client][3]))	
+	{
+		AcceptEntityInput(g_iGrabbingEntity[client][3], "Kill");
+		g_iGrabbingEntity[client][3] = -1;
+	}
 }
 
 
@@ -789,4 +818,62 @@ stock void CopyVector(const float input[3], float out[3])
 	out[0] = input[0];
 	out[1] = input[1];
 	out[2] = input[2];
+}
+
+void AttachControlPointParticle(int ent, char[] strParticle, int controlpoint)
+{
+	int particle = CreateEntityByName("info_particle_system");
+	int particle2 = CreateEntityByName("info_particle_system");
+	
+	if (IsValidEdict(particle))
+	{ 
+		char tName[128];
+		Format(tName, sizeof(tName), "SimpleBuild:%i", ent);
+		DispatchKeyValue(ent, "targetname", tName);
+
+		char cpName[128];
+		Format(cpName, sizeof(cpName), "SimpleBuildd:%i", ent);
+		DispatchKeyValue(controlpoint, "targetname", cpName);
+
+		char cp2Name[128];
+		Format(cp2Name, sizeof(cp2Name), "tf2particle%i", controlpoint);
+
+		DispatchKeyValue(particle2, "targetname", cp2Name);
+		DispatchKeyValue(particle2, "parentname", cpName);
+
+		float pos[3], m_vecMaxs[3], cAng[3];
+		GetClientAbsAngles(ent, cAng);
+		GetEntPropVector(controlpoint, Prop_Data, "m_vecOrigin", pos);
+		GetEntPropVector(controlpoint, Prop_Send, "m_vecMaxs", m_vecMaxs);
+		
+		pos[2] += (m_vecMaxs[2] / 2.0);
+		
+		SetEntPropVector(particle, Prop_Data, "m_angRotation", cAng);
+		SetEntPropVector(particle2, Prop_Data, "m_vecOrigin", pos);
+		
+		SetVariantString(cpName);
+		AcceptEntityInput(particle2, "SetParent");
+
+		DispatchKeyValue(particle, "targetname", "tf2particle");
+		DispatchKeyValue(particle, "parentname", tName);
+		DispatchKeyValue(particle, "effect_name", strParticle);
+		DispatchKeyValue(particle, "cpoint1", cp2Name);
+
+		DispatchSpawn(particle);
+
+		SetVariantString(tName);
+		AcceptEntityInput(particle, "SetParent");
+
+		SetVariantString("flag");
+		AcceptEntityInput(particle, "SetParentAttachment");
+		cAng[0] -= 270.0;
+		cAng[1] -= 69.0;
+		SetEntPropVector(particle, Prop_Send, "m_angRotation", cAng);
+		//The particle is finally ready
+		ActivateEntity(particle);
+		AcceptEntityInput(particle, "start");
+	
+		g_iGrabbingEntity[ent][2] = EntIndexToEntRef(particle);
+		g_iGrabbingEntity[ent][3] = EntIndexToEntRef(particle2);
+	}
 }
