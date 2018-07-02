@@ -22,7 +22,7 @@
 
 public Plugin myinfo = 
 {
-	name = "[TF2] TF2Sandbox - PhysicsGun Version 3",
+	name = "[TF2] PhysicsGun",
 	author = PLUGIN_AUTHOR,
 	description = "Physics Gun on TF2! Grab everything!",
 	version = PLUGIN_VERSION,
