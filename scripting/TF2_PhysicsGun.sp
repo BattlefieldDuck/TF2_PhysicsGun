@@ -17,7 +17,6 @@ Change log
 #include <vphysics>
 #include <morecolors>
 #include <tf2_stocks>
-#include <tf2items_giveweapon>
 
 #pragma newdecls required
 
@@ -48,8 +47,10 @@ public Plugin myinfo =
 #define PLUGIN_TAG "{dodgerblue}[{azure}PhysGun{dodgerblue}]{aliceblue}"
 
 static int g_iPhysicGunIndex = 878787;
-static int g_iPhysicGunWeaponIndex = 1001;
+static int g_iPhysicGunWeaponIndex = 1195;
 static int g_iPhysicGunQuality = 1;
+static int g_iPhysicGunLevel = 99;
+
 
 Handle g_cvForceEntity;
 Handle g_cvForcePlayer;
@@ -105,39 +106,71 @@ public Action Command_EquipPhysicsGun(int client, int args)
 
 void EquipPhysicsGun(int client)
 {
-	if(IsValidClient(client))
+	if (!IsValidClient(client))
 	{
-		if(IsPlayerAlive(client))
+		return;
+	}
+	if (!IsPlayerAlive(client))
 	{
+		CPrintToChat(client, "%s You can {red}NOT {aliceblue}equip {aqua}PhysicsGun{aliceblue} when you are DEAD!", PLUGIN_TAG);
+		return;
+	}
+
 	int iWeapon = GetPlayerWeaponSlot(client, 1);
 	if (IsValidEntity(iWeapon))
 	{
 		SetEntPropEnt(client, Prop_Send, "m_hActiveWeapon", iWeapon);
 	}
 
-			if(!TF2Items_CheckWeapon(g_iPhysicGunIndex))
+	if (!IsModelPrecached(MODEL_PHYSICSGUN))
 	{
-				if(!IsModelPrecached(MODEL_PHYSICSGUN))	PrecacheModel(MODEL_PHYSICSGUN);
-				TF2Items_CreateWeapon(g_iPhysicGunIndex, "tf_weapon_builder", g_iPhysicGunWeaponIndex, 1, g_iPhysicGunQuality, 99, "", -1, MODEL_PHYSICSGUN, true);
+		g_iPhysicsGunWorld = PrecacheModel(MODEL_PHYSICSGUN);
 	}
 
-			int PhysicsGun = TF2Items_GiveWeapon(client, g_iPhysicGunIndex);
+	TF2_RemoveWeaponSlot(client, 1);
+	int PhysicsGun = CreateAndEquipPhysicsgun(client);
 	if (IsValidEntity(PhysicsGun))
 	{
 		SetEntProp(PhysicsGun, Prop_Send, "m_nSkin", 1);
 		SetEntProp(PhysicsGun, Prop_Send, "m_iWorldModelIndex", g_iPhysicsGunWorld);
 		SetEntProp(PhysicsGun, Prop_Send, "m_nModelIndexOverrides", g_iPhysicsGunWorld, _, 0);
 		SetEntProp(PhysicsGun, Prop_Send, "m_nSequence", 2);
+		CPrintToChat(client, "%s You have equip a {aqua}Physics Gun{aliceblue}!", PLUGIN_TAG);
+		CPrintToChat(client, "- {aliceblue}Made By {yellow}BattlefieldDuck{aliceblue}. Credits: {green}Pelipoika{aliceblue}, {red}Danct12{aliceblue}, {pink}LeadKiller{aliceblue}.");
+		SendDialogToOne(client, 240, 248, 255, "You have equip a Physics Gun!");
+	} else {
+		CPrintToChat(client, "%s Error equipping {aqua}Physics Gun{aliceblue}!", PLUGIN_TAG);
 	}
-	CPrintToChat(client, "%s You have equip a {aqua}Physics Gun{aliceblue}!", PLUGIN_TAG);
-	CPrintToChat(client, "- {aliceblue}Made By {yellow}BattlefieldDuck{aliceblue}. Credits: {green}Pelipoika{aliceblue}, {red}Danct12{aliceblue}, {pink}LeadKiller{aliceblue}.");
-	SendDialogToOne(client, 240, 248, 255, "You have equip a Physics Gun!");
+
 }
-		else 	
+
+int CreateAndEquipPhysicsgun(int client)
 {
-			CPrintToChat(client, "%s You can {red}NOT {aliceblue}equip {aqua}PhysicsGun{aliceblue} when you are DEAD!", PLUGIN_TAG);
-		}
+	int weapon = CreateEntityByName("tf_weapon_builder");
+
+	if (!IsValidEntity(weapon))
+	{
+		return -1;
 	}
+
+	SetEntityModel(weapon, MODEL_PHYSICSGUN);
+
+	SetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex", g_iPhysicGunWeaponIndex);
+	SetEntProp(weapon, Prop_Send, "m_bInitialized", 1);
+	SetEntData(weapon, GetEntSendPropOffs(weapon, "m_iEntityQuality", true), g_iPhysicGunQuality);
+	SetEntData(weapon, GetEntSendPropOffs(weapon, "m_iEntityLevel", true), g_iPhysicGunLevel);
+	SetEntProp(weapon, Prop_Send, "m_iEntityQuality", g_iPhysicGunQuality);
+	SetEntProp(weapon, Prop_Send, "m_iEntityLevel", g_iPhysicGunLevel);
+	SetEntProp(weapon, Prop_Send, "m_iObjectType", 3);
+	SetEntProp(weapon, Prop_Data, "m_iSubType", 3);
+	SetEntProp(weapon, Prop_Send, "m_aBuildableObjectTypes", 0, _, 0);
+	SetEntProp(weapon, Prop_Send, "m_aBuildableObjectTypes", 0, _, 1);
+	SetEntProp(weapon, Prop_Send, "m_aBuildableObjectTypes", 0, _, 2);
+	SetEntProp(weapon, Prop_Send, "m_aBuildableObjectTypes", 1, _, 3);
+
+	DispatchSpawn(weapon);
+	EquipPlayerWeapon(client, weapon);
+	return weapon;
 }
 
 //-----[ Start and End ]--------------------------------------------------(
