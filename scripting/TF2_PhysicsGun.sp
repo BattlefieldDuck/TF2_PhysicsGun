@@ -127,7 +127,6 @@ void EquipPhysicsGun(int client)
 		g_iPhysicsGunWorld = PrecacheModel(MODEL_PHYSICSGUN);
 	}
 
-	TF2_RemoveWeaponSlot(client, 1);
 	int PhysicsGun = CreateAndEquipPhysicsgun(client);
 	if (IsValidEntity(PhysicsGun))
 	{
@@ -168,6 +167,7 @@ int CreateAndEquipPhysicsgun(int client)
 	SetEntProp(weapon, Prop_Send, "m_aBuildableObjectTypes", 0, _, 2);
 	SetEntProp(weapon, Prop_Send, "m_aBuildableObjectTypes", 1, _, 3);
 
+	TF2_RemoveWeaponSlot(client, 1);
 	DispatchSpawn(weapon);
 	EquipPlayerWeapon(client, weapon);
 	return weapon;
