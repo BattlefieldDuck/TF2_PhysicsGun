@@ -26,19 +26,19 @@ public Plugin myinfo =
 	author = PLUGIN_AUTHOR,
 	description = "Physics Gun on TF2! Grab everything!",
 	version = PLUGIN_VERSION,
-	url = "http://steamcommunity.com/id/battlefieldduck/"
+	url = "https://github.com/BattlefieldDuck/TF2_PhysicsGun"
 };
 
 #define HIDEHUD_WEAPONSELECTION			( 1<<0 ) // Hide ammo count & weapon selection
 
 //https://github.com/bouletmarc/hl2_ep2_content
-#define MODEL_PHYSICSGUN 			"models/weapons/w_physics.mdl"
-#define MODEL_PHYSICSGUNVIEWMODEL 	"models/weapons/v_superphyscannon.mdl"
-#define MODEL_PHYSICSLASER 			"materials/sprites/physbeam.vmt"
-#define MODEL_HALOINDEX 			"materials/sprites/halo01.vmt"
-#define MODEL_BLUEGLOW 				"materials/sprites/blueglow2.vmt"
-#define SOUND_PICKUP 				"weapons/physcannon/physcannon_pickup.wav"
-#define SOUND_DROP 					"weapons/physcannon/physcannon_drop.wav"
+#define MODEL_PHYSICSGUN			"models/weapons/w_physics.mdl"
+#define MODEL_PHYSICSGUNVM		"models/weapons/v_superphyscannon.mdl"
+#define MODEL_PHYSICSLASER		"materials/sprites/physbeam.vmt"
+#define MODEL_HALOINDEX				"materials/sprites/halo01.vmt"
+#define MODEL_BLUEGLOW				"materials/sprites/blueglow2.vmt"
+#define SOUND_PICKUP					"weapons/physcannon/physcannon_pickup.wav"
+#define SOUND_DROP						"weapons/physcannon/physcannon_drop.wav"
 
 #define GRAB_HINTS "Obj: %s\nIndex: %i [%i]\nName: %s"
 #define ROTATE_HINTS "Angle: %i %i %i\nDistance: %im\nSize: %.2f"
@@ -46,10 +46,9 @@ public Plugin myinfo =
 
 #define PLUGIN_TAG "{dodgerblue}[{azure}PhysGun{dodgerblue}]{aliceblue}"
 
-static int g_iPhysicGunIndex = 878787;
 static int g_iPhysicGunWeaponIndex = 1195;
 static int g_iPhysicGunQuality = 1;
-static int g_iPhysicGunLevel = 99;
+static int g_iPhysicGunLevel = 99-128;	//Level displays as 99 but negative level ensures this is unique
 
 
 Handle g_cvForceEntity;
@@ -64,7 +63,7 @@ ConVar g_cvScaleBypass;
 Handle g_hHud;
 
 int g_ModelIndex;
-int g_iPhysicsGun;
+int g_iPhysicsGunVM;
 int g_iPhysicsGunWorld;
 int g_HaloIndex;
 
@@ -134,9 +133,9 @@ void EquipPhysicsGun(int client)
 		SetEntProp(PhysicsGun, Prop_Send, "m_iWorldModelIndex", g_iPhysicsGunWorld);
 		SetEntProp(PhysicsGun, Prop_Send, "m_nModelIndexOverrides", g_iPhysicsGunWorld, _, 0);
 		SetEntProp(PhysicsGun, Prop_Send, "m_nSequence", 2);
-		CPrintToChat(client, "%s You have equip a {aqua}Physics Gun{aliceblue}!", PLUGIN_TAG);
+		CPrintToChat(client, "%s You have equipped a {aqua}Physics Gun{aliceblue}!", PLUGIN_TAG);
 		CPrintToChat(client, "- {aliceblue}Made By {yellow}BattlefieldDuck{aliceblue}. Credits: {green}Pelipoika{aliceblue}, {red}Danct12{aliceblue}, {pink}LeadKiller{aliceblue}.");
-		SendDialogToOne(client, 240, 248, 255, "You have equip a Physics Gun!");
+		SendDialogToOne(client, 240, 248, 255, "You have equipped a Physics Gun!");
 	} else {
 		CPrintToChat(client, "%s Error equipping {aqua}Physics Gun{aliceblue}!", PLUGIN_TAG);
 	}
@@ -156,6 +155,7 @@ int CreateAndEquipPhysicsgun(int client)
 
 	SetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex", g_iPhysicGunWeaponIndex);
 	SetEntProp(weapon, Prop_Send, "m_bInitialized", 1);
+	//Player crashes if quality and level aren't set with both methods, for some reason
 	SetEntData(weapon, GetEntSendPropOffs(weapon, "m_iEntityQuality", true), g_iPhysicGunQuality);
 	SetEntData(weapon, GetEntSendPropOffs(weapon, "m_iEntityLevel", true), g_iPhysicGunLevel);
 	SetEntProp(weapon, Prop_Send, "m_iEntityQuality", g_iPhysicGunQuality);
@@ -178,7 +178,7 @@ public void OnMapStart() //Precache Sound and Model
 {
 	g_ModelIndex = PrecacheModel(MODEL_PHYSICSLASER);
 	g_HaloIndex = PrecacheModel(MODEL_HALOINDEX);
-	g_iPhysicsGun = PrecacheModel(MODEL_PHYSICSGUNVIEWMODEL);
+	g_iPhysicsGunVM = PrecacheModel(MODEL_PHYSICSGUNVM);
 	g_iPhysicsGunWorld = PrecacheModel(MODEL_PHYSICSGUN);
 
 	PrecacheSound(SOUND_PICKUP);
@@ -220,7 +220,7 @@ public void OnClientDisconnect(int client)
 	g_iGrabbingEntity[client][1] = -1; //tf_glow
 	g_iGrabbingEntity[client][2] = -1;
 	g_fGrabbingDistance[client] = 0.0;
-	SDKUnhook(client, SDKHook_WeaponCanSwitchTo, BlockWeaponSwtich);
+	SDKUnhook(client, SDKHook_WeaponCanSwitchTo, BlockWeaponSwitch);
 	SDKUnhook(client, SDKHook_WeaponSwitchPost, WeaponSwitchHookPost);
 }
 
@@ -241,7 +241,7 @@ public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 
 	if(IsValidClient(client))
 	{
-		SDKUnhook(client, SDKHook_WeaponCanSwitchTo, BlockWeaponSwtich);
+		SDKUnhook(client, SDKHook_WeaponCanSwitchTo, BlockWeaponSwitch);
 		TF2_RegeneratePlayer(client);
 	}
 }
@@ -249,17 +249,14 @@ public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast
 //Block weapon drop physics gun
 public void OnDroppedWeaponSpawn(int entity)
 {
-	if(IsValidEntity(entity))
+	if(IsValidEntity(entity) && IsPhysicsGun(entity))
 	{
-		if(GetEntProp(entity, Prop_Send, "m_iItemDefinitionIndex") == g_iPhysicGunWeaponIndex && GetEntProp(entity, Prop_Send, "m_iEntityQuality") == g_iPhysicGunQuality)
-		{
-			AcceptEntityInput(entity, "Kill");
-		}
+		AcceptEntityInput(entity, "Kill");
 	}
 }
 
 //Hook Key "Q" (Required last switched weapon to work properly and model reload) + Block Weapon Switch
-public Action BlockWeaponSwtich(int client, int entity)
+public Action BlockWeaponSwitch(int client, int entity)
 {
 	return Plugin_Handled;
 }
@@ -272,28 +269,30 @@ public Action WeaponSwitchHookPost(int client, int entity)
 		int iViewModel = GetEntPropEnt(client, Prop_Send, "m_hViewModel");
 		if(IsHoldingPhysicsGun(client))
 		{
-			SetEntProp(iViewModel, Prop_Send, "m_nModelIndex", g_iPhysicsGun, 2);
+			SetEntProp(iViewModel, Prop_Send, "m_nModelIndex", g_iPhysicsGunVM, 2);
 			SetEntProp(iViewModel, Prop_Send, "m_nSequence", 2);
 		}
 		else
 		{
-			//Change back to default viewmodel when m_nModelIndex == g_iPhysicsGun only.
-			if(GetEntProp(iViewModel, Prop_Send, "m_nModelIndex", 2) == g_iPhysicsGun)
+			//Change back to default viewmodel when m_nModelIndex == g_iPhysicsGunVM only.
+			if(GetEntProp(iViewModel, Prop_Send, "m_nModelIndex", 2) == g_iPhysicsGunVM)
 			{
 				char sArmModel[128];
 				switch (TF2_GetPlayerClass(client))
 				{
-					case TFClass_Scout: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_scout_arms.mdl");
-					case TFClass_Soldier: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_soldier_arms.mdl");
-					case TFClass_Pyro: 		Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_pyro_arms.mdl");
-					case TFClass_DemoMan: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_demo_arms.mdl");
-					case TFClass_Heavy:		Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_heavy_arms.mdl");
+					case TFClass_Scout:			Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_scout_arms.mdl");
+					case TFClass_Soldier:		Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_soldier_arms.mdl");
+					case TFClass_Pyro:			Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_pyro_arms.mdl");
+					case TFClass_DemoMan:		Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_demo_arms.mdl");
+					case TFClass_Heavy:			Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_heavy_arms.mdl");
 					case TFClass_Engineer: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_engineer_arms.mdl");
-					case TFClass_Medic: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_medic_arms.mdl");
-					case TFClass_Sniper: 	Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_sniper_arms.mdl");
-					case TFClass_Spy: 		Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_spy_arms.mdl");
+					case TFClass_Medic:			Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_medic_arms.mdl");
+					case TFClass_Sniper:		Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_sniper_arms.mdl");
+					case TFClass_Spy:				Format(sArmModel, sizeof(sArmModel), "models/weapons/c_models/c_spy_arms.mdl");
 				}
-				if(strlen(sArmModel) > 0)	SetEntProp(iViewModel, Prop_Send, "m_nModelIndex", PrecacheModel(sArmModel, true), 2);
+				if(strlen(sArmModel) > 0)	{
+					SetEntProp(iViewModel, Prop_Send, "m_nModelIndex", PrecacheModel(sArmModel, true), 2);
+				}
 			}
 		}
 	}
@@ -342,7 +341,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				if(IsValidEntity(iEntity) && !IsValidEntity(EntRefToEntIndex(g_iGrabbingEntity[client][0])))
 				{
 					//Hook Disable Weapon Change
-					SDKHook(client, SDKHook_WeaponCanSwitchTo, BlockWeaponSwtich);
+					SDKHook(client, SDKHook_WeaponCanSwitchTo, BlockWeaponSwitch);
 
 					//Set entity to g_iGrabbingEntity[client][0]
 					SetEntityBindIndex(client, iEntity);
@@ -597,7 +596,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 									if(fSize <= fMinSize)	fSize = fMinSize;
 									if(fSize >= fMaxSize)	fSize = fMaxSize;
 								}
-								SetEntPropFloat(entity, Prop_Send, "m_flModelScale", fSize);
+								SetModelScale(entity, fSize);
 								//PhysicsGun_UpdateEntityHitbox(entity);
 							}
 							//--------------------------------------------------------------------------
@@ -732,11 +731,20 @@ stock bool IsHoldingPhysicsGun(int client)
 	int iWeapon = GetPlayerWeaponSlot(client, 1);
 	int iActiveWeapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
 
-	if(IsValidEntity(iWeapon) && iWeapon == iActiveWeapon && GetEntProp(iActiveWeapon, Prop_Send, "m_iItemDefinitionIndex") == g_iPhysicGunWeaponIndex && GetEntProp(iActiveWeapon, Prop_Send, "m_iEntityQuality") == g_iPhysicGunQuality)
+	if(IsValidEntity(iWeapon) && iWeapon == iActiveWeapon && IsPhysicsGun(iActiveWeapon))
 	{	//Check Is it Physics Gun
 		return true;
 	}
 	return false;
+}
+
+stock bool IsPhysicsGun(int entity) {
+	if (GetEntSendPropOffs(entity, "m_iItemDefinitionIndex", true) <= 0) {
+		return false;
+	}
+	return GetEntProp(entity, Prop_Send, "m_iItemDefinitionIndex") == g_iPhysicGunWeaponIndex
+		&& GetEntProp(entity, Prop_Send, "m_iEntityQuality") == g_iPhysicGunQuality
+		&& GetEntProp(entity, Prop_Send, "m_iEntityLevel") == g_iPhysicGunLevel;
 }
 
 stock int GetClientAimEntity(int client)
@@ -808,14 +816,15 @@ int PhysicsGun_RespawnEntity(int iEntity)
 		SetEntProp(iNewEntity, Prop_Send, "m_nSolidType", 6);
 		SetEntProp(iNewEntity, Prop_Data, "m_nSolidType", 6);
 
-		if (!IsModelPrecached(szModel))
+		if (!IsModelPrecached(szModel)) {
 			PrecacheModel(szModel);
+		}
 
 		DispatchKeyValue(iNewEntity, "model", szModel);
 		TeleportEntity(iNewEntity, fOrigin, fAngles, NULL_VECTOR);
 		DispatchSpawn(iNewEntity);
 		SetEntProp(iNewEntity, Prop_Data, "m_CollisionGroup", iCollision);
-		SetEntPropFloat(iNewEntity, Prop_Send, "m_flModelScale", fSize);
+		SetModelScale(iNewEntity, fSize);
 		if(iAlpha < 255)	SetEntityRenderMode(iNewEntity, RENDER_TRANSCOLOR);
 		else	SetEntityRenderMode(iNewEntity, RENDER_NORMAL);
 		SetEntityRenderColor(iNewEntity, iRed, iGreen, iBlue, iAlpha);
@@ -859,23 +868,27 @@ int PhysicsGun_CopyProp(int iEntity)
 	}
 	else if(StrContains(szClass, "prop_") != -1)
 	{
-		if(g_cvLessLag.BoolValue)	iNewEntity = CreateEntityByName("prop_dynamic_override");
-		else	iNewEntity = CreateEntityByName(szClass);
+		if (g_cvLessLag.BoolValue) {
+			iNewEntity = CreateEntityByName("prop_dynamic_override");
+		} else {
+			iNewEntity = CreateEntityByName(szClass);
+		}
 
 		if (iNewEntity > MaxClients && IsValidEntity(iNewEntity))
 		{
 			SetEntProp(iNewEntity, Prop_Send, "m_nSolidType", 6);
 			SetEntProp(iNewEntity, Prop_Data, "m_nSolidType", 6);
 
-			if (!IsModelPrecached(szModel))
+			if (!IsModelPrecached(szModel)) {
 				PrecacheModel(szModel);
+			}
 
 			DispatchKeyValue(iNewEntity, "model", szModel);
 			TeleportEntity(iNewEntity, fOrigin, fAngles, NULL_VECTOR);
 			DispatchSpawn(iNewEntity);
 			SetEntProp(iNewEntity, Prop_Data, "m_CollisionGroup", iCollision);
 			SetEntProp(iNewEntity, Prop_Data, "m_CollisionGroup", 5);
-			SetEntPropFloat(iNewEntity, Prop_Send, "m_flModelScale", fSize);
+			SetModelScale(iNewEntity, fSize);
 			if(iAlpha < 255)	SetEntityRenderMode(iNewEntity, RENDER_TRANSCOLOR);
 			else	SetEntityRenderMode(iNewEntity, RENDER_NORMAL);
 			SetEntityRenderColor(iNewEntity, iRed, iGreen, iBlue, iAlpha);
@@ -920,7 +933,16 @@ void PhysicsGun_RotationCalculation_NewGrabbingDifference(float fGrabbingDiffere
 	outfNewDifferece[2] = C3;
 }
 
+stock void SetModelScale(int entity, float scale) {
+	char szScale[32];
+	FloatToString(scale, szScale, sizeof(szScale));
+	SetVariantString(szScale);
+	AcceptEntityInput(entity, "SetModelScale");
+}
+
+//UpdateEntityHitbox is not necessary if SetModelScale is used
 //Not working help me
+/*
 bool PhysicsGun_UpdateEntityHitbox(int iEntity)
 {
 	char szModel[64];
@@ -955,6 +977,7 @@ bool PhysicsGun_UpdateEntityHitbox(int iEntity)
 	PrintCenterTextAll("%f %f %f   %f %f %f", fEntityMin[0], fEntityMin[1], fEntityMin[2], fEntityMax[0], fEntityMax[1], fEntityMax[2]); //debug
 	return true;
 }
+*/
 
 
 //From raindowglow.sp--------------(
@@ -1314,7 +1337,7 @@ void ResetClientAttribute(int client)
 		SetEntProp(client, Prop_Send, "m_iHideHUD", GetEntProp(client, Prop_Send, "m_iHideHUD") &~HIDEHUD_WEAPONSELECTION);
 	}
 
-	SDKUnhook(client, SDKHook_WeaponCanSwitchTo, BlockWeaponSwtich);
+	SDKUnhook(client, SDKHook_WeaponCanSwitchTo, BlockWeaponSwitch);
 }
 
 stock float GetEntitiesDistance(int entity1, int entity2)
