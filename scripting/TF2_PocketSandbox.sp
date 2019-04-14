@@ -21,9 +21,9 @@ public Plugin myinfo =
 
 public void OnPluginStart()
 {
-	RegAdminCmd("sm_psb", Command_PocketSandboxMenu, 0, "Open the Pocket Sandbox Menu");
-	RegAdminCmd("sm_psandbox", Command_PocketSandboxMenu, 0, "Open the Pocket Sandbox Menu");
-	RegAdminCmd("sm_pocketsandbox", Command_PocketSandboxMenu, 0, "Open the Pocket Sandbox Menu");
+	RegAdminCmd("sm_psb", Command_PocketSandboxMenu, ADMFLAG_ROOT, "Open the Pocket Sandbox Menu");
+	RegAdminCmd("sm_psandbox", Command_PocketSandboxMenu, ADMFLAG_ROOT, "Open the Pocket Sandbox Menu");
+	RegAdminCmd("sm_pocketsandbox", Command_PocketSandboxMenu, ADMFLAG_ROOT, "Open the Pocket Sandbox Menu");
 }
 
 public Action Command_PocketSandboxMenu(int client, int args)
