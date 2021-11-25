@@ -3,7 +3,7 @@
 #define DEBUG
 
 #define PLUGIN_AUTHOR "BattlefieldDuck"
-#define PLUGIN_VERSION "3.00"
+#define PLUGIN_VERSION "3.01"
 
 #include <sourcemod>
 #include <sdkhooks>
@@ -218,6 +218,47 @@ bool IsPhysicsGun(int entity)
 	return GetEntProp(entity, Prop_Send, "m_iItemDefinitionIndex") == g_iPhysicsGunWeaponIndex
 		&& GetEntProp(entity, Prop_Send, "m_iEntityQuality") == g_iPhysicsGunQuality
 		&& GetEntProp(entity, Prop_Send, "m_iEntityLevel") == g_iPhysicsGunLevel;
+}
+
+/** retruns the client holding the entity or 0 if none */
+int GetEntityHolder(int entity) {
+	if (!IsValidEntity(entity)) return 0;
+	if (entity > 0) entity = EntIndexToEntRef(entity);
+	for (int i=1;i<=MaxClients;i++)
+		if (IsClientInGame(i) && g_iEntityRef[i]==entity)
+			return i;
+	return 0;
+}
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {
+	CreateNative("TF2PhysGun_IsHoldingPhysicsGun", Native_IsHoldingPhysicsGun);
+	CreateNative("TF2PhysGun_IsPhysicsGun", Native_IsPhysicsGun);
+	CreateNative("TF2PhysGun_GetEntityHolder", Native_GetEntityHolder);
+	CreateNative("TF2PhysGun_GetClientHeldEntity", Native_GetClientHeldEntity);
+	RegPluginLibrary("tf2physgun");
+	return APLRes_Success;
+}
+
+public any Native_IsHoldingPhysicsGun(Handle plugin, int argc) {
+	int client=GetNativeCell(1);
+	if (!(1<=client<=MaxClients) || !IsClientInGame(client) || !IsPlayerAlive(client)) return false;
+	return IsHoldingPhysicsGun(client);
+}
+public any Native_IsPhysicsGun(Handle plugin, int argc) {
+	int entity=GetNativeCell(1);
+	if (!IsValidEntity(entity)) return false;
+	return IsPhysicsGun(entity);
+}
+public any Native_GetEntityHolder(Handle plugin, int argc) {
+	int entity=GetNativeCell(1);
+	if (!IsValidEntity(entity)) return INVALID_ENT_REFERENCE;
+	return GetEntityHolder(entity);
+}
+public any Native_GetClientHeldEntity(Handle plugin, int argc) {
+	int client=GetNativeCell(1);
+	if (1<=client<=MaxClients && IsClientInGame(client) && IsValidEntity(g_iEntityRef[client]))
+		return g_iEntityRef[client];
+	return INVALID_ENT_REFERENCE;
 }
 
 /* Physics gun function */
